@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review Reply Studio — local AI replies for small hotels</title>
+<style>
+  :root { --bg:#0f1720; --card:#182430; --ink:#e8eef4; --muted:#9db2c4; --accent:#f59e0b; --ok:#34d399; --warn:#f87171; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: Georgia, 'DejaVu Serif', serif; background:var(--bg); color:var(--ink); }
+  .wrap { max-width:720px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:1.7rem; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:.92rem; margin-bottom:20px; }
+  .badge { display:inline-block; background:#123026; color:var(--ok); border:1px solid #1e4d3a;
+           border-radius:999px; padding:2px 10px; font-size:.75rem; margin-left:8px; vertical-align:middle; }
+  .card { background:var(--card); border:1px solid #24384a; border-radius:12px; padding:16px; margin-bottom:16px; }
+  label { display:block; font-size:.8rem; color:var(--muted); margin:10px 0 4px; text-transform:uppercase; letter-spacing:.05em; }
+  textarea, select, input { width:100%; background:#0d1620; color:var(--ink); border:1px solid #2b4155;
+    border-radius:8px; padding:10px; font-family:inherit; font-size:.95rem; }
+  textarea { min-height:90px; resize:vertical; }
+  .row { display:flex; gap:12px; }
+  .row > div { flex:1; }
+  button { background:var(--accent); color:#1a1206; border:0; border-radius:8px; padding:12px 22px;
+    font-size:1rem; font-weight:bold; cursor:pointer; width:100%; margin-top:14px; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .draft { white-space:pre-wrap; line-height:1.55; font-size:1.02rem; }
+  .flagged { border-color:var(--warn); }
+  .flagtag { color:var(--warn); font-size:.8rem; font-weight:bold; }
+  .oktag { color:var(--ok); font-size:.8rem; }
+  .spinner { color:var(--muted); font-style:italic; }
+  .footer { color:var(--muted); font-size:.78rem; text-align:center; margin-top:28px; }
+  .hidden { display:none; }
+  .copybtn { width:auto; margin-top:10px; padding:6px 14px; font-size:.85rem; background:#24384a; color:var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛎️ Review Reply Studio <span class="badge">100% local · {{ model }}</span></h1>
+  <p class="sub">Draft warm, factual replies to guest reviews. Runs entirely on an open-weight model on your own machine — guest data never leaves the building, and each reply costs €0.00.</p>
+
+  <div class="card">
+    <label for="profile">Your hotel (name, style, signature)</label>
+    <textarea id="profile" rows="3">Auberge du Moulin — a 12-room family inn by the river in Mersch, Luxembourg. Amenities you may mention: riverside rooms, homemade breakfast with local jams, free parking, riverside walking trail tips. We do NOT have a spa, pool or restaurant. Warm, personal tone. Sign as "— Claire & Marc, Auberge du Moulin".</textarea>
+    <div class="row">
+      <div style="flex:0 0 110px">
+        <label for="stars">Stars</label>
+        <select id="stars">
+          <option>5</option><option>4</option><option>3</option>
+          <option value="2">2 ⚠</option><option value="1">1 ⚠</option>
+        </select>
+      </div>
+      <div>
+        <label for="lang-note">&nbsp;</label>
+        <input disabled value="Reply language = review language (auto)">
+      </div>
+    </div>
+    <label for="review">Guest review</label>
+    <textarea id="review" rows="4" placeholder="Paste the guest review here…"></textarea>
+    <button id="go" onclick="draft()">Draft my reply ✍️</button>
+  </div>
+
+  <div id="out" class="card hidden">
+    <label>Reply draft <span id="flag" class=""></span></label>
+    <div id="draft" class="draft"></div>
+    <button class="copybtn" onclick="copyDraft()">Copy</button>
+  </div>
+
+  <div class="card">
+    <label>Try a sample review</label>
+    <div class="row">
+      <button class="copybtn" onclick="sample(0)">5★ EN</button>
+      <button class="copybtn" onclick="sample(1)">4★ FR</button>
+      <button class="copybtn" onclick="sample(2)">2★ ⚠ DE</button>
+    </div>
+  </div>
+
+  <p class="footer">No cloud. No subscription. No data leaving this machine.<br>
+  Open-source — github.com/jeffreyturov-dev/review-reply-studio</p>
+</div>
+<script>
+const samples = [
+  {stars:5, text:"We spent two nights at the Auberge and loved every minute. The room was spotless, the breakfast jam is clearly homemade, and Claire recommended a riverside walk that was the highlight of our trip. We'll be back in spring!"},
+  {stars:4, text:"Très bon séjour dans l'ensemble. La chambre donnant sur la rivière est charmante et le lit très confortable. Petit bémol : le wifi était capricieux le soir. Accueil adorable, on reviendra."},
+  {stars:2, text:"Leider war unser Zimmer bei Ankunft nicht sauber — Haare im Bad und der Mülleimer war nicht geleert. Die Lage ist schön, aber das hat uns sehr enttäuscht."}
+];
+function sample(i){
+  document.getElementById('stars').value = samples[i].stars;
+  document.getElementById('review').value = samples[i].text;
+}
+async function draft(){
+  const btn = document.getElementById('go');
+  btn.disabled = true; btn.textContent = 'Drafting locally… (~15s)';
+  const out = document.getElementById('out');
+  out.classList.add('hidden');
+  try {
+    const r = await fetch('/api/reply', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        review: document.getElementById('review').value,
+        stars: document.getElementById('stars').value,
+        profile: document.getElementById('profile').value
+      })});
+    const d = await r.json();
+    document.getElementById('draft').textContent = d.draft || d.error || '—';
+    const flag = document.getElementById('flag');
+    if (d.flagged) { flag.textContent = '⚠ needs a human before posting'; flag.className='flagtag'; out.classList.add('flagged'); }
+    else { flag.textContent = '✓ safe to review & post'; flag.className='oktag'; out.classList.remove('flagged'); }
+    out.classList.remove('hidden');
+    out.scrollIntoView({behavior:'smooth'});
+  } catch(e) { alert('Error: '+e); }
+  btn.disabled = false; btn.textContent = 'Draft my reply ✍️';
+}
+function copyDraft(){
+  navigator.clipboard.writeText(document.getElementById('draft').textContent);
+}
+</script>
+</body>
+</html>
