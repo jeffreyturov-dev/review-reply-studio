@@ -6,7 +6,7 @@ machine. Each reply costs €0.00.
 
 ![cover](media/cover.png)
 
-**Live demo:** https://mind-donor-officially-including.trycloudflare.com
+**Live demo:** https://seen-momentum-deutsch-raleigh.trycloudflare.com
 *(temporary tunnel for the DEV Hacktoberfest Week 2 judging period)*
 
 ## Why it exists
